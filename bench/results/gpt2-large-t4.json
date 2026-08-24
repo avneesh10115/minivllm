@@ -1,0 +1,93 @@
+{
+  "config": {
+    "model": "gpt2-large",
+    "num_requests": 64,
+    "num_blocks": 1024,
+    "tight_blocks": 32,
+    "block_size": 16,
+    "max_num_seqs": 32,
+    "static_batch_size": 32,
+    "device": "cuda",
+    "dtype": "float16",
+    "seed": 0
+  },
+  "scenarios": {
+    "roomy_kv_pool": {
+      "num_blocks": 1024,
+      "kv_pool_tokens": 16384,
+      "kv_pool_mib": 2880.0,
+      "reports": [
+        {
+          "engine": "static batching + reserved KV",
+          "status": "ok",
+          "num_requests": 64,
+          "wall_s": 23.885,
+          "generated_tokens": 1256,
+          "output_tokens_per_s": 52.59,
+          "model_steps": 96,
+          "tokens_per_step": 13.08,
+          "mean_latency_s": 17.596,
+          "p99_latency_s": 23.888,
+          "mean_ttft_s": 6.901,
+          "peak_concurrent_seqs": 32,
+          "peak_kv_slots": 2656,
+          "peak_blocks_used": 166,
+          "kv_slots_wasted": 0.08,
+          "prefix_blocks_reused": 0,
+          "preemptions": 0
+        },
+        {
+          "engine": "miniVLLM (paged + continuous)",
+          "status": "ok",
+          "num_requests": 64,
+          "wall_s": 22.608,
+          "generated_tokens": 1256,
+          "output_tokens_per_s": 55.56,
+          "model_steps": 72,
+          "tokens_per_step": 17.44,
+          "mean_latency_s": 13.263,
+          "p99_latency_s": 22.608,
+          "mean_ttft_s": 4.842,
+          "peak_concurrent_seqs": 32,
+          "peak_kv_slots": 2368,
+          "peak_blocks_used": 58,
+          "kv_slots_wasted": 0.0,
+          "prefix_blocks_reused": 186,
+          "preemptions": 0
+        }
+      ]
+    },
+    "tight_kv_pool": {
+      "num_blocks": 32,
+      "kv_pool_tokens": 512,
+      "kv_pool_mib": 90.0,
+      "reports": [
+        {
+          "engine": "static batching + reserved KV",
+          "status": "out of KV blocks",
+          "peak_kv_slots": 0,
+          "peak_blocks_used": 0
+        },
+        {
+          "engine": "miniVLLM (paged + continuous)",
+          "status": "ok",
+          "num_requests": 64,
+          "wall_s": 23.467,
+          "generated_tokens": 1256,
+          "output_tokens_per_s": 53.52,
+          "model_steps": 117,
+          "tokens_per_step": 10.74,
+          "mean_latency_s": 12.566,
+          "p99_latency_s": 23.468,
+          "mean_ttft_s": 7.042,
+          "peak_concurrent_seqs": 23,
+          "peak_kv_slots": 1488,
+          "peak_blocks_used": 32,
+          "kv_slots_wasted": 0.0,
+          "prefix_blocks_reused": 237,
+          "preemptions": 17
+        }
+      ]
+    }
+  }
+}
