@@ -118,14 +118,16 @@ class BlockManager:
     def add_shared_block(self, table: BlockTable, prefix_tokens: list[int]) -> None:
         token_hash = hash_tokens(prefix_tokens)
         cached_block_id = self.prefix_cache.get(token_hash)
-        if (
-            cached_block_id is not None
-            and self.allocator.block(cached_block_id).ref_count > 0
-        ):
-            self.allocator.add_reference(cached_block_id)
-            table.blocks.append(cached_block_id)
-            self.prefix_hits += 1
-            return
+        if cached_block_id is not None:
+            cached = self.allocator.block(cached_block_id)
+            # A freed block is handed out again for other tokens, so the hash on
+            # the block has to match too, not just the one in the cache.
+            if cached.ref_count > 0 and cached.content_hash == token_hash:
+                self.allocator.add_reference(cached_block_id)
+                table.blocks.append(cached_block_id)
+                self.prefix_hits += 1
+                return
+
         block = self.allocator.allocate()
         block.content_hash = token_hash
         self.prefix_cache[token_hash] = block.block_id

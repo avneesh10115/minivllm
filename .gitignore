@@ -11,4 +11,3 @@ bench/results/
 *.png
 .ipynb_checkpoints/
 .env
-tests/
