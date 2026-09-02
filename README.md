@@ -159,3 +159,13 @@ minivllm-serve --model gpt2
 curl -s localhost:8000/generate -H 'content-type: application/json' \
      -d '{"prompt": "The capital of France is", "max_tokens": 16}'
 ```
+
+## Tests
+
+```bash
+python -m pytest tests
+```
+
+The tests cover block sharing and reference counts, reads and writes across two
+blocks that are not next to each other, and preemption followed by a recompute.
+They run on CPU and do not download model weights.
