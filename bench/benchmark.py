@@ -36,13 +36,13 @@ TOPICS = [
 
 
 def build_workload(num_requests: int, seed: int) -> list[tuple[str, int]]:
-    random_picker = random.Random(seed)
+    rng = random.Random(seed)
     workload = []
     for request_number in range(num_requests):
         topic = TOPICS[request_number % len(TOPICS)]
         prompt = f"{SYSTEM_PROMPT}\nQuestion: Explain {topic}.\nAnswer:"
         # Different output lengths make short requests wait in a fixed batch.
-        max_tokens = random_picker.choice([8, 8, 12, 16, 24, 48])
+        max_tokens = rng.choice([8, 8, 12, 16, 24, 48])
         workload.append((prompt, max_tokens))
     return workload
 

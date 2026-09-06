@@ -32,9 +32,13 @@ for each sequence.
 ### Sharing prompt blocks
 
 The engine calculates a hash for every full prompt block. Sequences with the
-same prompt prefix can point to the same blocks. If one sequence needs to change
-a shared block, the engine copies that block first. This is called copy on
-write.
+same prompt prefix can point to the same blocks. Only full prompt blocks are
+shared. Generated tokens use a new block after a full prompt block, so shared
+blocks are never changed.
+
+This sharing reduces the physical memory used by the KV cache, so a prompt that
+many requests have in common costs one copy of blocks instead of one copy per
+request.
 
 ### Continuous batching
 
@@ -122,7 +126,7 @@ engine used the whole pool.
 
 ```
 minivllm/
-   block_manager.py   blocks, reference counts, prefix hashes, block copying
+   block_manager.py   blocks, reference counts and prefix hashes
   scheduler.py       continuous batching, admission, preemption
   attention.py       paged KV read/write and attention
   model.py           GPT-2 forward pass over the paged cache

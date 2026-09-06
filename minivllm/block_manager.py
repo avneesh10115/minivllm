@@ -141,26 +141,6 @@ class BlockManager:
         table.num_tokens += 1
         return table.blocks[-1]
 
-    def fork(self, parent_seq_id: int, child_seq_id: int) -> BlockTable:
-        parent = self.tables[parent_seq_id]
-        child = BlockTable(self.block_size, list(parent.blocks), parent.num_tokens)
-        for block_id in child.blocks:
-            self.allocator.add_reference(block_id)
-        self.tables[child_seq_id] = child
-        return child
-
-    def ensure_writable(self, seq_id: int) -> int | None:
-        table = self.tables[seq_id]
-        if not table.blocks:
-            return None
-        last = table.blocks[-1]
-        if self.allocator.block(last).ref_count == 1:
-            return None
-        new_block = self.allocator.allocate()
-        table.blocks[-1] = new_block.block_id
-        self.allocator.free(last)
-        return new_block.block_id
-
     def free(self, seq_id: int) -> None:
         table = self.tables.pop(seq_id, None)
         if table is None:

@@ -56,8 +56,9 @@ class ModelRunner:
     @staticmethod
     def filter_top_p(probabilities: torch.Tensor, top_p: float) -> torch.Tensor:
         sorted_probabilities, sorted_indexes = probabilities.sort(descending=True)
-        previous_total = sorted_probabilities.cumsum(dim=-1) - sorted_probabilities
-        sorted_probabilities[previous_total >= top_p] = 0.0
+        # Sum without the current token, so the token that crosses top_p is kept.
+        cumsum_before = sorted_probabilities.cumsum(dim=-1) - sorted_probabilities
+        sorted_probabilities[cumsum_before >= top_p] = 0.0
         filtered = torch.zeros_like(probabilities)
         filtered[sorted_indexes] = sorted_probabilities
         return filtered / filtered.sum()
