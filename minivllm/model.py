@@ -5,7 +5,13 @@ from dataclasses import dataclass
 import torch
 import torch.nn.functional as F
 
-from .attention import decode_attention, prefill_attention, read_kv, write_kv
+from .attention import (
+    batched_decode_attention,
+    build_decode_table,
+    prefill_attention,
+    write_kv,
+    write_kv_decode,
+)
 
 
 @dataclass
@@ -32,10 +38,12 @@ class PagedGPT2:
         block_size: int,
         device: torch.device | str = "cpu",
         dtype: torch.dtype = torch.float32,
+        use_triton: bool = True,
     ) -> None:
         config = hf_model.config
         self.device = torch.device(device)
         self.dtype = dtype
+        self.use_triton = use_triton
         self.num_layers = config.n_layer
         self.num_heads = config.n_head
         self.hidden_size = config.n_embd
@@ -88,11 +96,12 @@ class PagedGPT2:
         block_size: int,
         device: torch.device | str = "cpu",
         dtype: torch.dtype = torch.float32,
+        use_triton: bool = True,
     ) -> "PagedGPT2":
         from transformers import GPT2LMHeadModel
 
         hf_model = GPT2LMHeadModel.from_pretrained(model_name)
-        return cls(hf_model, num_blocks, block_size, device, dtype)
+        return cls(hf_model, num_blocks, block_size, device, dtype, use_triton)
 
     @property
     def kv_bytes_per_block(self) -> int:
@@ -160,6 +169,8 @@ class PagedGPT2:
         if int(positions.max()) >= self.max_position:
             raise ValueError(f"sequence exceeds context window {self.max_position}")
         hidden_states = self.wte[ids] + self.wpe[positions]
+        # Built once per step, because every layer walks the same block tables.
+        table, lengths = build_decode_table(block_tables, cache_lens, self.device)
 
         for index, layer in enumerate(self.layers):
             normalized = self.layer_norm(hidden_states, layer.ln1_w, layer.ln1_b)
@@ -171,24 +182,10 @@ class PagedGPT2:
             keys = self.split_heads(key_flat)
             values = self.split_heads(value_flat)
 
-            attention_result = torch.empty_like(queries)
-            for batch_index in range(batch_size):
-                cache = self.cache[index]
-                write_kv(
-                    cache,
-                    block_tables[batch_index],
-                    cache_lens[batch_index],
-                    keys[batch_index : batch_index + 1],
-                    values[batch_index : batch_index + 1],
-                )
-                cached_keys, cached_values = read_kv(
-                    cache,
-                    block_tables[batch_index],
-                    cache_lens[batch_index] + 1,
-                )
-                attention_result[batch_index] = decode_attention(
-                    queries[batch_index], cached_keys, cached_values
-                )
+            write_kv_decode(self.cache[index], table, positions, keys, values)
+            attention_result = batched_decode_attention(
+                queries, self.cache[index], table, lengths, self.use_triton
+            )
 
             hidden_states = (
                 hidden_states

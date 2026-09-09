@@ -20,6 +20,7 @@ class ModelRunner:
             block_size=config.block_size,
             device=self.device,
             dtype=config.resolve_dtype(),
+            use_triton=config.use_triton,
         )
         self.eos_token_id = self.tokenizer.eos_token_id
 

@@ -143,6 +143,7 @@ def run_scenario(args, workload, num_blocks: int) -> dict:
         max_num_seqs=args.max_num_seqs,
         device=args.device,
         dtype=args.dtype,
+        use_triton=not args.no_triton,
     )
     runner = ModelRunner(config)
     reports = [
@@ -173,6 +174,11 @@ def main() -> None:
     parser.add_argument("--static-batch-size", type=int, default=8)
     parser.add_argument("--device", default=None, help="cuda or cpu; auto-detected by default")
     parser.add_argument("--dtype", default="float32", choices=["float32", "float16", "bfloat16"])
+    parser.add_argument(
+        "--no-triton",
+        action="store_true",
+        help="use the per-sequence PyTorch attention instead of the kernel",
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--out", default="bench/results/benchmark.json")
     args = parser.parse_args()

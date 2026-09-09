@@ -5,6 +5,13 @@ import math
 import torch
 import torch.nn.functional as F
 
+try:
+    from .kernels import paged_decode_attention
+
+    HAS_TRITON = True
+except ImportError:  # Triton is not installed on every platform.
+    HAS_TRITON = False
+
 
 def write_kv(
     cache: torch.Tensor,
@@ -50,3 +57,52 @@ def prefill_attention(
         queries, key_states, value_states, is_causal=True
     )
     return attention.transpose(0, 1)
+
+
+def build_decode_table(
+    block_tables: list[list[int]], cache_lens: list[int], device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Packs the batch's block tables into one padded tensor for the kernel."""
+    width = max(len(table) for table in block_tables)
+    padded = [table + [0] * (width - len(table)) for table in block_tables]
+    table = torch.tensor(padded, dtype=torch.int32, device=device)
+    # The kernel wants the length after this step's token is written.
+    lengths = torch.tensor(
+        [length + 1 for length in cache_lens], dtype=torch.int32, device=device
+    )
+    return table, lengths
+
+
+def write_kv_decode(
+    cache: torch.Tensor,
+    table: torch.Tensor,
+    positions: torch.Tensor,
+    keys: torch.Tensor,
+    values: torch.Tensor,
+) -> None:
+    """Writes one new token per sequence, one call for the whole batch."""
+    block_size = cache.shape[2]
+    rows = torch.arange(table.shape[0], device=cache.device)
+    block_ids = table[rows, positions // block_size].long()
+    offsets = positions % block_size
+    cache[0, block_ids, offsets] = keys.to(cache.dtype)
+    cache[1, block_ids, offsets] = values.to(cache.dtype)
+
+
+def batched_decode_attention(
+    query: torch.Tensor,
+    cache: torch.Tensor,
+    table: torch.Tensor,
+    lengths: torch.Tensor,
+    use_triton: bool = True,
+) -> torch.Tensor:
+    """Decode attention for every sequence in the batch."""
+    if use_triton and HAS_TRITON and query.is_cuda:
+        return paged_decode_attention(query, cache, table, lengths)
+    result = torch.empty(query.shape, dtype=query.dtype, device=query.device)
+    for index in range(query.shape[0]):
+        length = int(lengths[index])
+        block_table = table[index].tolist()
+        keys, values = read_kv(cache, block_table, length)
+        result[index] = decode_attention(query[index], keys, values)
+    return result

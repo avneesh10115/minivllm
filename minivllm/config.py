@@ -8,6 +8,8 @@ class EngineConfig:
     model: str = "gpt2"
     device: str | None = None
     dtype: str = "float32"
+    # Falls back to the PyTorch path when Triton is missing or on CPU.
+    use_triton: bool = True
 
     # KV cache settings shared by all requests.
     block_size: int = 16
